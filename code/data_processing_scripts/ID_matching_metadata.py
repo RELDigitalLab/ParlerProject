@@ -4,7 +4,6 @@ import os
 import pandas as pd
 from tqdm.auto import tqdm
 import tarfile
-import zipfile
 
 # 2. Create temp file with list of processed filenames, with success or error condition
 # 4. Create result file to log matching filenames
