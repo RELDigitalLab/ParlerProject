@@ -1,3 +1,5 @@
+# Script has been made obsolete by a direct download zip.
+import os
 import pandas as pd
 import time
 from tqdm.auto import tqdm
