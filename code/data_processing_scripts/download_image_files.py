@@ -15,7 +15,8 @@ files = df['filename'].tolist()
 
 # Download files to external harddrive
 
-last_downloaded = 97214
+last_downloaded = len(os.listdir(output_dir))-1
+print(f'Starting at file {last_downloaded}')
 
 pbar = tqdm(desc='Download Image Files', total=len(files[last_downloaded:]))
 
