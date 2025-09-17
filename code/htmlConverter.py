@@ -1,12 +1,14 @@
 import os
 from tqdm import tqdm
 from bs4 import BeautifulSoup
+from concurrent.futures import ThreadPoolExecutor
+import threading
 # from bertopic import BERTopic
 # from umap import UMAP
 
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__))) # Parler folder
-html_dir = os.path.join(project_root, "data", "test_data")
-txt_dir = os.path.join(project_root, "data", "txt_files")
+html_dir = os.path.join(project_root, "data", "donk_enby", "parler_posts_unzipped")
+txt_dir = os.path.join(project_root, "data", "parler_posts_txt") # Parler/data/txt_files
 os.makedirs(txt_dir, exist_ok=True)
 
 # Dummy files for testing
@@ -58,16 +60,41 @@ def extract_text_from_html(html_content):
 # for filename in os.listdir(html_dir):
 #     if filename.endswith(".html"):
 
-# Tracks progress in terminal
-html_files = [f for f in os.listdir(html_dir) if f.endswith(".html")]
-for filename in tqdm(html_files, desc="Converting HTML to TXT"):
-    with open(os.path.join(html_dir, filename), "r", encoding="utf-8") as f:
-        html = f.read()
-        text = extract_text_from_html(html)
+def process_single_file(filename):
+    """Process a single HTML file and convert it to TXT"""
+    try:
+        html_path = os.path.join(html_dir, filename)
+        txt_filename = filename.replace(".html", ".txt")
+        txt_path = os.path.join(txt_dir, txt_filename)
+        
+        # Skip if already processed
+        if os.path.exists(txt_path):
+            return f"Skipped {filename} (already exists)"
+        
+        with open(html_path, "r", encoding="utf-8") as f:
+            html = f.read()
+            text = extract_text_from_html(html)
 
-    txt_filename = filename.replace(".html", ".txt")
-    with open(os.path.join(txt_dir, txt_filename), "w", encoding="utf-8") as f:
-        f.write(text)
+        with open(txt_path, "w", encoding="utf-8") as f:
+            f.write(text)
+            
+        return f"Processed {filename}"
+    except Exception as e:
+        return f"Error processing {filename}: {str(e)}"
+
+html_files = [f for f in os.listdir(html_dir) if f.endswith(".html")]
+
+# Multithreaded processing
+max_workers = min(32, (os.cpu_count() or 1) + 4)  # Reasonable thread count
+print(f"Processing {len(html_files)} files using {max_workers} threads...")
+
+with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    # Use tqdm to track progress
+    list(tqdm(
+        executor.map(process_single_file, html_files),
+        total=len(html_files),
+        desc="Converting HTML to TXT"
+    ))
 
 '''
 # Commented out for now due to errors, hopefully will work with larger dataset
