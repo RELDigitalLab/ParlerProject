@@ -10,7 +10,7 @@ import pandas as pd
 # pd.set_option('display.max_colwidth', None)
 
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__))) # Parler folder
-data_dir = os.path.join(project_root, "data", "test_data") # Parler/data/test_data
+data_dir = os.path.join(project_root, "data", "parler_posts_txt") # Parler/data/parler_posts_txt
 output_path = os.path.join(project_root, "data", "bertopicOutput") # Parler/data/bertopicOutput
 text_files = glob.glob(os.path.join(data_dir, "*.txt"))
 docs = []
@@ -49,6 +49,7 @@ vectorizer_model = CountVectorizer(
     max_features=5000           # Limit to top 5000 features
 )
 
+# Use pre-embedded data here
 topic_model = BERTopic(verbose=True, vectorizer_model=vectorizer_model)
 topics, probs = topic_model.fit_transform(docs) # Custom stop_words now configured to filter out Parler metadata terms
 
