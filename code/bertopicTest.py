@@ -53,8 +53,8 @@ vectorizer_model = CountVectorizer(
 topic_model = BERTopic(verbose=True, vectorizer_model=vectorizer_model)
 topics, probs = topic_model.fit_transform(docs) # Custom stop_words now configured to filter out Parler metadata terms
 
-print("\nTop 10 Topics:")
-print(topic_model.get_topic_info().head(10))
+print("\nTopic Information:")
+print(topic_model.get_topic_info())
 
 # words used to fit in Topic 0
 print("\nWords in Topic 0:")
@@ -100,6 +100,24 @@ with open(output_file, 'w', encoding='utf-8') as fileObj:
                 print(f"  {word}: {score:.4f}", file=fileObj)
         else:
             print(f"\nTopic {topic_id}: No words found (likely outlier topic)", file=fileObj)
+    
+    # Log all topics using get_topics() method
+    print("\n\nALL TOPICS SUMMARY (using get_topics):", file=fileObj)
+    print("-" * 50, file=fileObj)
+    all_topics = topic_model.get_topics()
+    print(f"Total topics retrieved: {len(all_topics)}", file=fileObj)
+    
+    for topic_id, topic_words in all_topics.items():
+        if topic_id == -1:
+            print(f"\nTopic {topic_id} (Outlier Topic):", file=fileObj)
+            print(f"  Contains {len(topic_words)} word associations", file=fileObj)
+        else:
+            print(f"\nTopic {topic_id}:", file=fileObj)
+            print(f"  Top 15 words: {', '.join([word for word, score in topic_words[:15]])}", file=fileObj)
+            print(f"  Total words in topic: {len(topic_words)}", file=fileObj)
+            if len(topic_words) > 0:
+                print(f"  Highest score: {topic_words[0][1]:.4f}", file=fileObj)
+                print(f"  Lowest score: {topic_words[-1][1]:.4f}", file=fileObj)
     
     # Log document-topic assignments
     print("\n\nDOCUMENT-TOPIC ASSIGNMENTS:", file=fileObj)
