@@ -27,9 +27,10 @@ except ImportError:
 # pd.set_option('display.max_columns', None)
 # pd.set_option('display.max_colwidth', None)
 
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__))) # Parler folder
-data_dir = os.path.join(project_root, "data", "parler_posts_txt") # Parler/data/parler_posts_txt
-output_path = os.path.join(project_root, "data", "bertopicOutput") # Parler/data/bertopicOutput
+# Windows paths accessible from WSL (update drive letter if your data is on a different drive)
+project_root = "/mnt/c/Parler"  # Absolute path to your Parler folder on Windows C: drive
+data_dir = os.path.join(project_root, "data", "parler_posts_txt")  # /mnt/c/Parler/data/parler_posts_txt
+output_path = os.path.join(project_root, "data", "bertopicOutput")  # /mnt/c/Parler/data/bertopicOutput
 text_files = glob.glob(os.path.join(data_dir, "*.txt"))
 docs = []
 
@@ -72,7 +73,8 @@ vectorizer_model = CountVectorizer(
 # ============================================================================
 # Option 1: Load pre-computed embeddings from file
 # Set embedding_path to your .npy file path, or set to None to compute embeddings
-embedding_path = r"C:\\Parler\\data\\embeddings\\embeddings.npy"  # Example: r"C:\path\to\your\embeddings.npy"
+
+embedding_path = "/mnt/c/Parler/data/embeddings/embeddings.npy"
 
 # Check if GPU is available
 if torch.cuda.is_available():
