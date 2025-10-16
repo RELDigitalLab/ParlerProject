@@ -5,6 +5,11 @@ from bertopic import BERTopic
 from sklearn.feature_extraction.text import CountVectorizer, ENGLISH_STOP_WORDS
 # from datasets import load_dataset
 import pandas as pd
+from sentence_transformers import SentenceTransformer
+import torch
+from cuml.cluster import HDBSCAN
+from cuml.manifold import UMAP
+from tqdm import tqdm
 
 # display options for printing DataFrames (datatype most BERTopic funcs return)
 # pd.set_option('display.max_columns', None)
@@ -50,10 +55,111 @@ vectorizer_model = CountVectorizer(
     max_features=5000           # Limit to top 5000 features
 )
 
-# Use pre-embedded data here
-embeddings = np.load(embedding_path)
-topic_model = BERTopic(verbose=True, vectorizer_model=vectorizer_model)
-topics, probs = topic_model.fit_transform(docs, embeddings) # Custom stop_words now configured to filter out Parler metadata terms
+# ============================================================================
+# EMBEDDING CONFIGURATION
+# ============================================================================
+# Option 1: Load pre-computed embeddings from file
+# Set embedding_path to your .npy file path, or set to None to compute embeddings
+embedding_path = None  # Example: r"C:\path\to\your\embeddings.npy"
+
+# Check if GPU is available
+if torch.cuda.is_available():
+    device = "cuda"
+    print(f"✅ GPU detected: {torch.cuda.get_device_name(0)}")
+    print(f"   CUDA version: {torch.version.cuda}")
+    print(f"   Available GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
+else:
+    device = "cpu"
+    print("⚠️  No GPU detected, using CPU")
+
+# ============================================================================
+# GPU-ACCELERATED DIMENSIONALITY REDUCTION AND CLUSTERING
+# ============================================================================
+print("\n📊 Configuring GPU-accelerated components...")
+
+# Try to use GPU-accelerated UMAP and HDBSCAN (cuML)
+try:
+    if device == "cuda":
+        print("Setting up GPU-accelerated UMAP and HDBSCAN (cuML)...")
+        umap_model = UMAP(
+            n_neighbors=15,
+            n_components=5,
+            min_dist=0.0,
+            metric='cosine',
+            verbose=True
+        )
+        hdbscan_model = HDBSCAN(
+            min_cluster_size=15,
+            min_samples=10,
+            metric='euclidean',
+            prediction_data=True,
+            verbose=True
+        )
+        print("✅ GPU-accelerated UMAP and HDBSCAN configured")
+    else:
+        raise ImportError("CPU mode - using standard implementations")
+except (ImportError, Exception) as e:
+    print(f"⚠️  cuML not available ({e}), using CPU-based UMAP and HDBSCAN")
+    from umap import UMAP
+    from hdbscan import HDBSCAN
+    
+    umap_model = UMAP(
+        n_neighbors=15,
+        n_components=5,
+        min_dist=0.0,
+        metric='cosine',
+        verbose=True
+    )
+    hdbscan_model = HDBSCAN(
+        min_cluster_size=15,
+        min_samples=10,
+        metric='euclidean',
+        prediction_data=True
+    )
+
+# ============================================================================
+# LOAD OR COMPUTE EMBEDDINGS WITH PROGRESS TRACKING
+# ============================================================================
+if embedding_path is not None and os.path.exists(embedding_path):
+    print(f"\n📂 Loading pre-computed embeddings from: {embedding_path}")
+    embeddings = np.load(embedding_path)
+    print(f"✅ Loaded embeddings with shape: {embeddings.shape}")
+    
+    # Create BERTopic model with GPU-accelerated components
+    print(f"\n🤖 Initializing BERTopic with GPU-accelerated components...")
+    topic_model = BERTopic(
+        verbose=True,
+        vectorizer_model=vectorizer_model,
+        umap_model=umap_model,
+        hdbscan_model=hdbscan_model
+    )
+    
+    print(f"\n🔄 Running topic modeling on {len(docs)} documents...")
+    print("Progress:")
+    topics, probs = topic_model.fit_transform(docs, embeddings)
+    
+else:
+    print("\n💡 No pre-computed embeddings found. Computing embeddings with GPU/CPU...")
+    # Initialize SentenceTransformer with the detected device
+    print(f"Initializing embedding model on {device.upper()}...")
+    embedding_model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
+    print(f"✅ Embedding model loaded on {device.upper()}")
+    
+    # Use embedding_model with BERTopic and GPU-accelerated components
+    print(f"\n🤖 Initializing BERTopic with GPU-accelerated components...")
+    topic_model = BERTopic(
+        verbose=True,
+        vectorizer_model=vectorizer_model,
+        embedding_model=embedding_model,
+        umap_model=umap_model,
+        hdbscan_model=hdbscan_model
+    )
+    
+    print(f"\n🔄 Running topic modeling on {len(docs)} documents...")
+    print("Progress: Computing embeddings and clustering...")
+    topics, probs = topic_model.fit_transform(docs)
+
+print(f"✅ Topic modeling complete!")
 
 print("\nTopic Information:")
 print(topic_model.get_topic_info())
@@ -75,6 +181,16 @@ with open(output_file, 'w', encoding='utf-8') as fileObj:
     print(f"Total Documents Processed: {len(docs)}", file=fileObj)
     print(f"Total Topics Found: {len(topic_info)}", file=fileObj)
     print(f"Date/Time: {pd.Timestamp.now()}", file=fileObj)
+    print(f"Device Available: {device.upper()}", file=fileObj)
+    if device == "cuda":
+        print(f"GPU: {torch.cuda.get_device_name(0)}", file=fileObj)
+        print(f"CUDA Version: {torch.version.cuda}", file=fileObj)
+    if embedding_path is not None and os.path.exists(embedding_path):
+        print(f"Embeddings: Loaded from file ({embedding_path})", file=fileObj)
+    else:
+        print(f"Embeddings: Computed using SentenceTransformer on {device.upper()}", file=fileObj)
+    print(f"UMAP: {type(umap_model).__module__}.{type(umap_model).__name__}", file=fileObj)
+    print(f"HDBSCAN: {type(hdbscan_model).__module__}.{type(hdbscan_model).__name__}", file=fileObj)
     print("=" * 80, file=fileObj)
     
     # Log COMPLETE topic info (not just top 10)
