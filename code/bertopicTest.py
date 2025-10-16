@@ -7,9 +7,21 @@ from sklearn.feature_extraction.text import CountVectorizer, ENGLISH_STOP_WORDS
 import pandas as pd
 from sentence_transformers import SentenceTransformer
 import torch
-from cuml.cluster import HDBSCAN
-from cuml.manifold import UMAP
 from tqdm import tqdm
+
+# Use CPU HDBSCAN and UMAP for Windows compatibility
+try:
+    from cuml.cluster import HDBSCAN as cumlHDBSCAN
+    from cuml.manifold import UMAP as cumlUMAP
+    print("✅ Using cuML (GPU acceleration)")
+    use_gpu_clustering = True
+except ImportError:
+    from hdbscan import HDBSCAN
+    from umap import UMAP
+    print("ℹ️  Using CPU clustering (cuML not available on Windows)")
+    use_gpu_clustering = False
+
+
 
 # display options for printing DataFrames (datatype most BERTopic funcs return)
 # pd.set_option('display.max_columns', None)
@@ -60,7 +72,7 @@ vectorizer_model = CountVectorizer(
 # ============================================================================
 # Option 1: Load pre-computed embeddings from file
 # Set embedding_path to your .npy file path, or set to None to compute embeddings
-embedding_path = None  # Example: r"C:\path\to\your\embeddings.npy"
+embedding_path = r"C:\\Parler\\data\\embeddings\\embeddings.npy"  # Example: r"C:\path\to\your\embeddings.npy"
 
 # Check if GPU is available
 if torch.cuda.is_available():
@@ -321,5 +333,7 @@ except Exception as e:
 # Save model to file for later reuse
 print("\nSaving BERTopic model...")
 model_path = os.path.join(output_path, "bertopic_model")
+if not os.path.exists(model_path):
+    os.makedirs(model_path)
 topic_model.save(model_path, serialization="pickle")
 print(f"✅ Model saved as '{model_path}' (can be loaded later with BERTopic.load())")
