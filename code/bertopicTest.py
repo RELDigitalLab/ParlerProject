@@ -1,5 +1,6 @@
 import os
 import glob
+import numpy as np
 from bertopic import BERTopic
 from sklearn.feature_extraction.text import CountVectorizer, ENGLISH_STOP_WORDS
 # from datasets import load_dataset
@@ -50,8 +51,9 @@ vectorizer_model = CountVectorizer(
 )
 
 # Use pre-embedded data here
+embeddings = np.load(embedding_path)
 topic_model = BERTopic(verbose=True, vectorizer_model=vectorizer_model)
-topics, probs = topic_model.fit_transform(docs) # Custom stop_words now configured to filter out Parler metadata terms
+topics, probs = topic_model.fit_transform(docs, embeddings) # Custom stop_words now configured to filter out Parler metadata terms
 
 print("\nTopic Information:")
 print(topic_model.get_topic_info())
