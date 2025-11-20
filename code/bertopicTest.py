@@ -171,6 +171,19 @@ else:
         hdbscan_model=hdbscan_model,
         calculate_probabilities=False
     )
+
+    # Save model to file for later reuse
+    print("\nSaving BERTopic model...")
+    model_path = os.path.join(output_path, "bertopic_model")
+    if not os.path.exists(model_path):
+        os.makedirs(model_path)
+    topic_model.save(
+        model_path,
+        serialization="safetensors",
+        save_ctfidf=True,
+        save_embedding_model=True
+    )
+    print(f"✅ Model saved as '{model_path}' (can be loaded later with BERTopic.load())")
     
     print(f"\n🔄 Running topic modeling on {len(docs)} documents...")
     print("Progress: Computing embeddings and clustering...")
@@ -333,16 +346,3 @@ try:
 except Exception as e:
     print(f"❌ Visualization failed: {e}")
     print("This often happens with small datasets or when topics are too similar.")
-
-# Save model to file for later reuse
-print("\nSaving BERTopic model...")
-model_path = os.path.join(output_path, "bertopic_model")
-if not os.path.exists(model_path):
-    os.makedirs(model_path)
-topic_model.save(
-    model_path,
-    serialization="safetensors",
-    save_ctfidf=True,
-    save_embedding_model=True
-)
-print(f"✅ Model saved as '{model_path}' (can be loaded later with BERTopic.load())")
