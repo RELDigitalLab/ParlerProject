@@ -55,7 +55,8 @@ embeddings = embedding_model.encode(
     show_progress_bar=True,
     convert_to_numpy=True,
     normalize_embeddings=True,
-    batch_size=32 if device == "cuda" else 16
+    batch_size=32 if device == "cuda" else 16,
+    device=device
 )
 
 elapsed = time.time() - start_time
