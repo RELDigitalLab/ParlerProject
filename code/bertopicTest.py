@@ -171,12 +171,17 @@ else:
         hdbscan_model=hdbscan_model,
         calculate_probabilities=False
     )
+    
+    print(f"\n🔄 Running topic modeling on {len(docs)} documents...")
+    print("Progress: Computing embeddings and clustering...")
+    topics, probs = topic_model.fit_transform(docs)
 
-    # Save model to file for later reuse
-    print("\nSaving BERTopic model...")
-    model_path = os.path.join(output_path, "bertopic_model")
-    if not os.path.exists(model_path):
-        os.makedirs(model_path)
+
+# Save model to file for later reuse
+model_path = os.path.join(output_path, "bertopic_model")
+if not os.path.exists(model_path):
+    os.makedirs(model_path)
+try: 
     topic_model.save(
         model_path,
         serialization="safetensors",
@@ -184,10 +189,8 @@ else:
         save_embedding_model=True
     )
     print(f"✅ Model saved as '{model_path}' (can be loaded later with BERTopic.load())")
-    
-    print(f"\n🔄 Running topic modeling on {len(docs)} documents...")
-    print("Progress: Computing embeddings and clustering...")
-    topics, probs = topic_model.fit_transform(docs)
+except Exception as e:
+    print(f"❌ Error saving model: {str(e)}")
 
 print(f"✅ Topic modeling complete!")
 
