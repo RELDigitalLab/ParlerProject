@@ -9,7 +9,11 @@ from sentence_transformers import SentenceTransformer
 import torch
 from tqdm import tqdm
 
-# Use CPU HDBSCAN and UMAP for Windows compatibility
+# Instructions to run
+# 1. Run 'conda activate parlerEnv' to activate the environment with required packages
+# 2. Execute this script: 'python [path]/bertopicTest.py'
+
+# Attempt to use GPU-accelerated UMAP and HDBSCAN (cuML)
 try:
     from cuml.cluster import HDBSCAN as cumlHDBSCAN
     from cuml.manifold import UMAP as cumlUMAP
@@ -21,17 +25,16 @@ except ImportError:
     print("ℹ️  Using CPU clustering (cuML not available on Windows)")
     use_gpu_clustering = False
 
-
-
-# display options for printing DataFrames (datatype most BERTopic funcs return)
-# pd.set_option('display.max_columns', None)
-# pd.set_option('display.max_colwidth', None)
-
-# Windows paths accessible from WSL (update drive letter if your data is on a different drive)
-project_root = "/mnt/c/Parler"  # Absolute path to your Parler folder on Windows C: drive
-data_dir = os.path.join(project_root, "data", "parler_posts_txt")  # /mnt/c/Parler/data/parler_posts_txt
-output_path = os.path.join(project_root, "data", "bertopicOutput")  # /mnt/c/Parler/data/bertopicOutput
+# WSL-native paths for fast file access
+project_root = os.path.expanduser("~/Uncivil-Religion-2.0")
+data_dir = os.path.join(project_root, "parler_posts_txt")
+output_path = os.path.join(project_root, "bertopicOutput")
 text_files = glob.glob(os.path.join(data_dir, "*.txt"))
+
+# # Windows paths accessible from WSL
+# project_root = "/mnt/c/Parler"  # Absolute path to your Parler folder on Windows C: drive
+# data_dir = os.path.join(project_root, "data", "parler_posts_txt")  # /mnt/c/Parler/data/parler_posts_txt
+# output_path = os.path.join(project_root, "data", "bertopicOutput")  # /mnt/c/Parler/data/bertopicOutput
 docs = []
 
 # Load documents from local directory
@@ -57,7 +60,6 @@ custom_stop_words = [
 ]
 
 # Get the built-in English stop words and combine with custom ones
-# Combine English stop words with our custom stop words
 all_stop_words = list(ENGLISH_STOP_WORDS) + custom_stop_words
 
 # Create a CountVectorizer with combined stop words
@@ -74,7 +76,7 @@ vectorizer_model = CountVectorizer(
 # Option 1: Load pre-computed embeddings from file
 # Set embedding_path to your .npy file path, or set to None to compute embeddings
 
-embedding_path = "/mnt/c/Parler/data/embeddings/embeddings.npy"
+embedding_path = None # "/mnt/c/Parler/data/embeddings/embeddings.npy"
 
 # Check if GPU is available
 if torch.cuda.is_available():
@@ -95,14 +97,14 @@ print("\n📊 Configuring GPU-accelerated components...")
 try:
     if device == "cuda":
         print("Setting up GPU-accelerated UMAP and HDBSCAN (cuML)...")
-        umap_model = UMAP(
+        umap_model = cumlUMAP(
             n_neighbors=15,
             n_components=5,
             min_dist=0.0,
             metric='cosine',
             verbose=True
         )
-        hdbscan_model = HDBSCAN(
+        hdbscan_model = cumlHDBSCAN(
             min_cluster_size=15,
             min_samples=10,
             metric='euclidean',
@@ -136,7 +138,7 @@ except (ImportError, Exception) as e:
 # ============================================================================
 if embedding_path is not None and os.path.exists(embedding_path):
     print(f"\n📂 Loading pre-computed embeddings from: {embedding_path}")
-    embeddings = np.load(embedding_path)
+    embeddings = np.load(embedding_path, allow_pickle=True) # Might need to re-save embeddings in different format
     print(f"✅ Loaded embeddings with shape: {embeddings.shape}")
     
     # Create BERTopic model with GPU-accelerated components
@@ -166,7 +168,8 @@ else:
         vectorizer_model=vectorizer_model,
         embedding_model=embedding_model,
         umap_model=umap_model,
-        hdbscan_model=hdbscan_model
+        hdbscan_model=hdbscan_model,
+        calculate_probabilities=False
     )
     
     print(f"\n🔄 Running topic modeling on {len(docs)} documents...")
@@ -182,6 +185,9 @@ print(topic_model.get_topic_info())
 print("\nWords in Topic 0:")
 print(topic_model.get_topic(0))
 
+# Create output directory if it doesn't exist
+os.makedirs(output_path, exist_ok=True)
+print(f"Output directory: {output_path}")
 output_file = os.path.join(output_path, "topicModel.txt") # Text output file
 
 with open(output_file, 'w', encoding='utf-8') as fileObj:
@@ -268,10 +274,6 @@ with open(output_file, 'w', encoding='utf-8') as fileObj:
 # Save visualizations to HTML files for later access
 print("\nGenerating and saving visualizations...")
 
-# Create output directory if it doesn't exist
-os.makedirs(output_path, exist_ok=True)
-print(f"Output directory: {output_path}")
-
 try:
     # Get unique topics count to check if visualization is possible
     unique_topics = len(set(topics)) - (1 if -1 in topics else 0)
@@ -337,5 +339,10 @@ print("\nSaving BERTopic model...")
 model_path = os.path.join(output_path, "bertopic_model")
 if not os.path.exists(model_path):
     os.makedirs(model_path)
-topic_model.save(model_path, serialization="pickle")
+topic_model.save(
+    model_path,
+    serialization="safetensors",
+    save_ctfidf=True,
+    save_embedding_model=True
+)
 print(f"✅ Model saved as '{model_path}' (can be loaded later with BERTopic.load())")
