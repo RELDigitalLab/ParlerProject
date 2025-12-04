@@ -108,7 +108,7 @@ try:
             min_cluster_size=15,
             min_samples=10,
             metric='euclidean',
-            prediction_data=True,
+            prediction_data=False,
             verbose=True
         )
         print("✅ GPU-accelerated UMAP and HDBSCAN configured")
@@ -130,7 +130,7 @@ except (ImportError, Exception) as e:
         min_cluster_size=15,
         min_samples=10,
         metric='euclidean',
-        prediction_data=True
+        prediction_data=False
     )
 
 # ============================================================================
@@ -169,7 +169,7 @@ else:
         embedding_model=embedding_model,
         umap_model=umap_model,
         hdbscan_model=hdbscan_model,
-        calculate_probabilities=False
+        calculate_probabilities=False # Set to True if possible, performance (memory) impact
     )
     
     print(f"\n🔄 Running topic modeling on {len(docs)} documents...")
@@ -288,64 +288,64 @@ with open(output_file, 'w', encoding='utf-8') as fileObj:
     print("=" * 80, file=fileObj)
 
 # Save visualizations to HTML files for later access
-print("\nGenerating and saving visualizations...")
+# print("\nGenerating and saving visualizations...")
 
-try:
-    # Get unique topics count to check if visualization is possible
-    unique_topics = len(set(topics)) - (1 if -1 in topics else 0)
+# try:
+#     # Get unique topics count to check if visualization is possible
+#     unique_topics = len(set(topics)) - (1 if -1 in topics else 0)
     
-    if unique_topics >= 2 and len(docs) >= 10:
-        # 2D topic visualization
-        print("Creating topic visualization...")
-        topic_viz = topic_model.visualize_topics()
-        topic_viz_path = os.path.join(output_path, "bertopic_topics_visualization.html")
-        topic_viz.write_html(topic_viz_path)
-        print(f"✅ Topic visualization saved as '{topic_viz_path}'")
+#     if unique_topics >= 2 and len(docs) >= 10:
+#         # 2D topic visualization
+#         print("Creating topic visualization...")
+#         topic_viz = topic_model.visualize_topics()
+#         topic_viz_path = os.path.join(output_path, "bertopic_topics_visualization.html")
+#         topic_viz.write_html(topic_viz_path)
+#         print(f"✅ Topic visualization saved as '{topic_viz_path}'")
         
-        # 2D document visualization
-        print("Creating document visualization...")
-        doc_viz = topic_model.visualize_documents(docs, topics=topics, hide_annotations=True)
-        doc_viz_path = os.path.join(output_path, "bertopic_documents_visualization.html")
-        doc_viz.write_html(doc_viz_path)
-        print(f"✅ Document visualization saved as '{doc_viz_path}'")
+#         # 2D document visualization
+#         print("Creating document visualization...")
+#         doc_viz = topic_model.visualize_documents(docs, topics=topics, hide_annotations=True)
+#         doc_viz_path = os.path.join(output_path, "bertopic_documents_visualization.html")
+#         doc_viz.write_html(doc_viz_path)
+#         print(f"✅ Document visualization saved as '{doc_viz_path}'")
         
-        # Topic hierarchy (if enough topics)
-        if unique_topics >= 3:
-            print("Creating topic hierarchy...")
-            hierarchy_viz = topic_model.visualize_hierarchy()
-            hierarchy_viz_path = os.path.join(output_path, "bertopic_hierarchy_visualization.html")
-            hierarchy_viz.write_html(hierarchy_viz_path)
-            print(f"✅ Hierarchy visualization saved as '{hierarchy_viz_path}'")
+#         # Topic hierarchy (if enough topics)
+#         if unique_topics >= 3:
+#             print("Creating topic hierarchy...")
+#             hierarchy_viz = topic_model.visualize_hierarchy()
+#             hierarchy_viz_path = os.path.join(output_path, "bertopic_hierarchy_visualization.html")
+#             hierarchy_viz.write_html(hierarchy_viz_path)
+#             print(f"✅ Hierarchy visualization saved as '{hierarchy_viz_path}'")
         
-        # Heatmap of topic similarities
-        if unique_topics >= 2:
-            print("Creating topic heatmap...")
-            heatmap_viz = topic_model.visualize_heatmap()
-            heatmap_viz_path = os.path.join(output_path, "bertopic_heatmap_visualization.html")
-            heatmap_viz.write_html(heatmap_viz_path)
-            print(f"✅ Heatmap visualization saved as '{heatmap_viz_path}'")
+#         # Heatmap of topic similarities
+#         if unique_topics >= 2:
+#             print("Creating topic heatmap...")
+#             heatmap_viz = topic_model.visualize_heatmap()
+#             heatmap_viz_path = os.path.join(output_path, "bertopic_heatmap_visualization.html")
+#             heatmap_viz.write_html(heatmap_viz_path)
+#             print(f"✅ Heatmap visualization saved as '{heatmap_viz_path}'")
         
-        # Barchart of top words per topic
-        print("Creating topic barchart...")
-        barchart_viz = topic_model.visualize_barchart(top_n_topics=min(10, unique_topics))
-        barchart_viz_path = os.path.join(output_path, "bertopic_barchart_visualization.html")
-        barchart_viz.write_html(barchart_viz_path)
-        print(f"✅ Barchart visualization saved as '{barchart_viz_path}'")
+#         # Barchart of top words per topic
+#         print("Creating topic barchart...")
+#         barchart_viz = topic_model.visualize_barchart(top_n_topics=min(10, unique_topics))
+#         barchart_viz_path = os.path.join(output_path, "bertopic_barchart_visualization.html")
+#         barchart_viz.write_html(barchart_viz_path)
+#         print(f"✅ Barchart visualization saved as '{barchart_viz_path}'")
         
-        print(f"\n🎉 All visualizations saved to {output_path}:")
-        print(f"   - bertopic_topics_visualization.html (2D topic map)")
-        print(f"   - bertopic_documents_visualization.html (2D document map)")
-        if unique_topics >= 3:
-            print(f"   - bertopic_hierarchy_visualization.html (topic hierarchy)")
-        if unique_topics >= 2:
-            print(f"   - bertopic_heatmap_visualization.html (topic similarity heatmap)")
-        print(f"   - bertopic_barchart_visualization.html (top words per topic)")
+#         print(f"\n🎉 All visualizations saved to {output_path}:")
+#         print(f"   - bertopic_topics_visualization.html (2D topic map)")
+#         print(f"   - bertopic_documents_visualization.html (2D document map)")
+#         if unique_topics >= 3:
+#             print(f"   - bertopic_hierarchy_visualization.html (topic hierarchy)")
+#         if unique_topics >= 2:
+#             print(f"   - bertopic_heatmap_visualization.html (topic similarity heatmap)")
+#         print(f"   - bertopic_barchart_visualization.html (top words per topic)")
         
-    else:
-        print(f"⚠️  Skipping visualizations - insufficient data:")
-        print(f"   Topics found: {unique_topics} (need ≥2)")
-        print(f"   Documents: {len(docs)} (need ≥10)")
+#     else:
+#         print(f"⚠️  Skipping visualizations - insufficient data:")
+#         print(f"   Topics found: {unique_topics} (need ≥2)")
+#         print(f"   Documents: {len(docs)} (need ≥10)")
         
-except Exception as e:
-    print(f"❌ Visualization failed: {e}")
-    print("This often happens with small datasets or when topics are too similar.")
+# except Exception as e:
+#     print(f"❌ Visualization failed: {e}")
+#     print("This often happens with small datasets or when topics are too similar.")
