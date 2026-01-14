@@ -8,6 +8,9 @@ import pandas as pd
 from sentence_transformers import SentenceTransformer
 import torch
 from tqdm import tqdm
+import time
+
+start_time = time.time()
 
 # Instructions to run
 # 1. Run 'conda activate parlerEnv' to activate the environment with required packages
@@ -75,6 +78,7 @@ vectorizer_model = CountVectorizer(
 # ============================================================================
 # Option 1: Load pre-computed embeddings from file
 # Set embedding_path to your .npy file path, or set to None to compute embeddings
+# Embeddings will be automatically saved to: [output_path]/embeddings.npy
 
 embedding_path = None # "/mnt/c/Parler/data/embeddings/embeddings.npy"
 
@@ -102,7 +106,8 @@ try:
             n_components=5,
             min_dist=0.0,
             metric='cosine',
-            verbose=True
+            verbose=True,
+            low_memory=True
         )
         hdbscan_model = cumlHDBSCAN(
             min_cluster_size=15,
@@ -136,6 +141,7 @@ except (ImportError, Exception) as e:
 # ============================================================================
 # LOAD OR COMPUTE EMBEDDINGS WITH PROGRESS TRACKING
 # ============================================================================
+embedding_model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
 if embedding_path is not None and os.path.exists(embedding_path):
     print(f"\n📂 Loading pre-computed embeddings from: {embedding_path}")
     embeddings = np.load(embedding_path, allow_pickle=True) # Might need to re-save embeddings in different format
@@ -153,12 +159,12 @@ if embedding_path is not None and os.path.exists(embedding_path):
     print(f"\n🔄 Running topic modeling on {len(docs)} documents...")
     print("Progress:")
     topics, probs = topic_model.fit_transform(docs, embeddings)
+    print(f"✅ Using pre-loaded embeddings with shape: {embeddings.shape}")
     
 else:
     print("\n💡 No pre-computed embeddings found. Computing embeddings with GPU/CPU...")
     # Initialize SentenceTransformer with the detected device
     print(f"Initializing embedding model on {device.upper()}...")
-    embedding_model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
     print(f"✅ Embedding model loaded on {device.upper()}")
     
     # Use embedding_model with BERTopic and GPU-accelerated components
@@ -175,6 +181,15 @@ else:
     print(f"\n🔄 Running topic modeling on {len(docs)} documents...")
     print("Progress: Computing embeddings and clustering...")
     topics, probs = topic_model.fit_transform(docs)
+    
+    # Extract and save the computed embeddings
+    print("\n💾 Saving embeddings for future use...")
+    embeddings = topic_model.embedding_model.encode(docs, show_progress_bar=True)
+    embeddings_save_path = os.path.join(output_path, "embeddings.npy")
+    os.makedirs(output_path, exist_ok=True)
+    np.save(embeddings_save_path, embeddings)
+    print(f"✅ Embeddings saved to: {embeddings_save_path}")
+    print(f"   Shape: {embeddings.shape}")
 
 
 # Save model to file for later reuse
@@ -184,9 +199,9 @@ if not os.path.exists(model_path):
 try: 
     topic_model.save(
         model_path,
-        serialization="safetensors",
+        serialization="pickle", # Pickle can execute code, public sharing should be in safetensors format (safetensors requires type conversions)
         save_ctfidf=True,
-        save_embedding_model=True
+        save_embedding_model=embedding_model
     )
     print(f"✅ Model saved as '{model_path}' (can be loaded later with BERTopic.load())")
 except Exception as e:
@@ -349,3 +364,21 @@ with open(output_file, 'w', encoding='utf-8') as fileObj:
 # except Exception as e:
 #     print(f"❌ Visualization failed: {e}")
 #     print("This often happens with small datasets or when topics are too similar.")
+
+# Stop timer and print total execution time
+end_time = time.time()
+total_time = end_time - start_time
+hours = int(total_time // 3600)
+minutes = int((total_time % 3600) // 60)
+seconds = total_time % 60
+
+print("\n" + "=" * 80)
+print("⏱️  TOTAL EXECUTION TIME")
+print("=" * 80)
+if hours > 0:
+    print(f"Total time: {hours}h {minutes}m {seconds:.2f}s ({total_time:.2f} seconds)")
+elif minutes > 0:
+    print(f"Total time: {minutes}m {seconds:.2f}s ({total_time:.2f} seconds)")
+else:
+    print(f"Total time: {seconds:.2f} seconds")
+print("=" * 80)
