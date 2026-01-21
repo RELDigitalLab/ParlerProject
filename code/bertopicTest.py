@@ -1,5 +1,6 @@
 import os
 import glob
+import shutil
 import numpy as np
 from bertopic import BERTopic
 from sklearn.feature_extraction.text import CountVectorizer, ENGLISH_STOP_WORDS
@@ -33,11 +34,9 @@ project_root = os.path.expanduser("~/Uncivil-Religion-2.0")
 data_dir = os.path.join(project_root, "parler_posts_txt")
 output_path = os.path.join(project_root, "bertopicOutput")
 text_files = glob.glob(os.path.join(data_dir, "*.txt"))
+embedding_path = os.path.join(project_root, "embeddings.npy") # None
 
-# # Windows paths accessible from WSL
-# project_root = "/mnt/c/Parler"  # Absolute path to your Parler folder on Windows C: drive
-# data_dir = os.path.join(project_root, "data", "parler_posts_txt")  # /mnt/c/Parler/data/parler_posts_txt
-# output_path = os.path.join(project_root, "data", "bertopicOutput")  # /mnt/c/Parler/data/bertopicOutput
+
 docs = []
 
 # Load documents from local directory
@@ -80,8 +79,6 @@ vectorizer_model = CountVectorizer(
 # Set embedding_path to your .npy file path, or set to None to compute embeddings
 # Embeddings will be automatically saved to: [output_path]/embeddings.npy
 
-embedding_path = None # "/mnt/c/Parler/data/embeddings/embeddings.npy"
-
 # Check if GPU is available
 if torch.cuda.is_available():
     device = "cuda"
@@ -110,7 +107,7 @@ try:
             low_memory=True
         )
         hdbscan_model = cumlHDBSCAN(
-            min_cluster_size=15,
+            min_cluster_size=3000,
             min_samples=10,
             metric='euclidean',
             prediction_data=False,
@@ -144,8 +141,11 @@ except (ImportError, Exception) as e:
 embedding_model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
 if embedding_path is not None and os.path.exists(embedding_path):
     print(f"\n📂 Loading pre-computed embeddings from: {embedding_path}")
-    embeddings = np.load(embedding_path, allow_pickle=True) # Might need to re-save embeddings in different format
+    embeddings = np.load(embedding_path, allow_pickle=True)
     print(f"✅ Loaded embeddings with shape: {embeddings.shape}")
+    # Verify dimensions match
+    if len(embeddings) != len(docs):
+        raise ValueError(f"Mismatch: {len(embeddings)} embeddings vs {len(docs)} documents")
     
     # Create BERTopic model with GPU-accelerated components
     print(f"\n🤖 Initializing BERTopic with GPU-accelerated components...")
@@ -153,7 +153,8 @@ if embedding_path is not None and os.path.exists(embedding_path):
         verbose=True,
         vectorizer_model=vectorizer_model,
         umap_model=umap_model,
-        hdbscan_model=hdbscan_model
+        hdbscan_model=hdbscan_model,
+        calculate_probabilities=False # Set to True if possible, performance (memory) impact
     )
     
     print(f"\n🔄 Running topic modeling on {len(docs)} documents...")
@@ -182,20 +183,10 @@ else:
     print("Progress: Computing embeddings and clustering...")
     topics, probs = topic_model.fit_transform(docs)
     
-    # Extract and save the computed embeddings
-    print("\n💾 Saving embeddings for future use...")
-    embeddings = topic_model.embedding_model.encode(docs, show_progress_bar=True)
-    embeddings_save_path = os.path.join(output_path, "embeddings.npy")
-    os.makedirs(output_path, exist_ok=True)
-    np.save(embeddings_save_path, embeddings)
-    print(f"✅ Embeddings saved to: {embeddings_save_path}")
-    print(f"   Shape: {embeddings.shape}")
 
 
 # Save model to file for later reuse
 model_path = os.path.join(output_path, "bertopic_model")
-if not os.path.exists(model_path):
-    os.makedirs(model_path)
 try: 
     topic_model.save(
         model_path,
