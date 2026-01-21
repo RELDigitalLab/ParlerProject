@@ -1,54 +1,55 @@
 import os
 import glob
-from sentence_transformers import SentenceTransformer
 import numpy as np
+from sentence_transformers import SentenceTransformer
 import torch
+from tqdm import tqdm
 import time
-from datetime import datetime
 
-# Windows paths accessible from WSL
+start_time = time.time()
+
+# WSL-native paths for fast file access
 project_root = os.path.expanduser("~/Uncivil-Religion-2.0")
 data_dir = os.path.join(project_root, "parler_posts_txt")
 output_path = os.path.join(project_root, "bertopicOutput")
-os.makedirs(output_path, exist_ok=True)
-
-# Check for GPU
-if torch.cuda.is_available():
-    device = "cuda"
-    print(f"✅ GPU detected: {torch.cuda.get_device_name(0)}")
-    print(f"   CUDA version: {torch.version.cuda}")
-    print(f"   GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
-else:
-    device = "cpu"
-    print("⚠️  No GPU detected, using CPU")
-
-# Load documents
-print(f"\n📂 Loading documents from: {data_dir}")
 text_files = glob.glob(os.path.join(data_dir, "*.txt"))
-print(f"Found {len(text_files)} text files")
 
+# # Windows paths accessible from WSL
+# project_root = "/mnt/c/Parler"  # Absolute path to your Parler folder on Windows C: drive
+# data_dir = os.path.join(project_root, "data", "parler_posts_txt")  # /mnt/c/Parler/data/parler_posts_txt
+# output_path = os.path.join(project_root, "data", "bertopicOutput")  # /mnt/c/Parler/data/bertopicOutput
 docs = []
+
+# Load documents from local directory
 for file_path in text_files:
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read().strip()
-            if content:
+            if content:  # Only add non-empty files
                 docs.append(content)
     except Exception as e:
-        print(f"Error reading {file_path}: {e}")
+        print(f"Error reading {file_path}: {e}")    
         continue
 
-print(f"Loaded {len(docs)} documents\n")
+# Check if GPU is available
+if torch.cuda.is_available():
+    device = "cuda"
+    print(f"✅ GPU detected: {torch.cuda.get_device_name(0)}")
+    print(f"   CUDA version: {torch.version.cuda}")
+    print(f"   Available GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
+else:
+    device = "cpu"
+    print("⚠️  No GPU detected, using CPU")
 
-# Initialize embedding model with GPU
-print(f"🤖 Loading embedding model on {device.upper()}...")
-embedding_model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
-print("✅ Model loaded\n")
+# ============================================================================
+# COMPUTE EMBEDDINGS WITH PROGRESS TRACKING
+# ============================================================================
+embedding_model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
 
-# Compute embeddings
-print("🔄 Computing embeddings...")
-print("=" * 60)
-start_time = time.time()
+# Initialize SentenceTransformer with the detected device
+print(f"Initializing embedding model on {device.upper()}...")
+print(f"✅ Embedding model loaded on {device.upper()}")
+print(f"\n Computing embeddings on {len(docs)} documents with progress tracking...")
 
 embeddings = embedding_model.encode(
     docs,
@@ -59,36 +60,26 @@ embeddings = embedding_model.encode(
     device=device
 )
 
-elapsed = time.time() - start_time
-print(f"\n✅ Embeddings computed in {elapsed:.1f}s ({elapsed/len(docs)*1000:.2f}ms per doc)")
-print(f"   Shape: {embeddings.shape}")
-
 # Save embeddings
 output_file = os.path.join(output_path, "embeddings.npy")
 print(f"\n💾 Saving embeddings to: {output_file}")
 np.save(output_file, embeddings)
 print("✅ Embeddings saved")
 
-# Save metadata
-metadata_file = os.path.join(output_path, "embedding_metadata.txt")
-with open(metadata_file, 'w', encoding='utf-8') as f:
-    f.write(f"Embedding Metadata\n")
-    f.write(f"=" * 50 + "\n")
-    f.write(f"Model: all-MiniLM-L6-v2\n")
-    f.write(f"Device: {device}\n")
-    if device == "cuda":
-        f.write(f"GPU: {torch.cuda.get_device_name(0)}\n")
-    f.write(f"Total documents: {len(docs)}\n")
-    f.write(f"Embedding dimensions: {embeddings.shape[1]}\n")
-    f.write(f"Data type: float32\n")
-    f.write(f"Normalized: Yes\n")
-    f.write(f"File size: {os.path.getsize(output_file) / (1024**3):.2f} GB\n")
-    f.write(f"Computation time: {elapsed:.1f}s\n")
-    f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+# Stop timer and print total execution time
+end_time = time.time()
+total_time = end_time - start_time
+hours = int(total_time // 3600)
+minutes = int((total_time % 3600) // 60)
+seconds = total_time % 60
 
-print(f"✅ Metadata saved to: {metadata_file}")
-print(f"\n📊 Summary:")
-print(f"   Documents processed: {len(docs)}")
-print(f"   File size: {os.path.getsize(output_file) / (1024**3):.2f} GB")
-print(f"   Processing rate: {len(docs)/elapsed:.1f} docs/second")
-print(f"\n🎉 Complete!")
+print("\n" + "=" * 80)
+print("⏱️  TOTAL EXECUTION TIME")
+print("=" * 80)
+if hours > 0:
+    print(f"Total time: {hours}h {minutes}m {seconds:.2f}s ({total_time:.2f} seconds)")
+elif minutes > 0:
+    print(f"Total time: {minutes}m {seconds:.2f}s ({total_time:.2f} seconds)")
+else:
+    print(f"Total time: {seconds:.2f} seconds")
+print("=" * 80)
