@@ -154,7 +154,8 @@ if embedding_path is not None and os.path.exists(embedding_path):
         vectorizer_model=vectorizer_model,
         umap_model=umap_model,
         hdbscan_model=hdbscan_model,
-        calculate_probabilities=False # Set to True if possible, performance (memory) impact
+        calculate_probabilities=False, # perfomance impact, if true will calculate probability for ALL topics per doc (instead of just the assigned one)
+        low_memory=True # Might help speed up
     )
     
     print(f"\n🔄 Running topic modeling on {len(docs)} documents...")
@@ -176,7 +177,8 @@ else:
         embedding_model=embedding_model,
         umap_model=umap_model,
         hdbscan_model=hdbscan_model,
-        calculate_probabilities=False # Set to True if possible, performance (memory) impact
+        calculate_probabilities=False, # Set to True if possible, performance (memory) impact
+        low_memory=True # Might help speed up
     )
     
     print(f"\n🔄 Running topic modeling on {len(docs)} documents...")
@@ -240,11 +242,11 @@ with open(output_file, 'w', encoding='utf-8') as fileObj:
     print("-" * 50, file=fileObj)
 
     # Drop the Representative_Docs column if it exists
-    topic_info_clean = topic_info.copy()
-    if 'Representative_Docs' in topic_info_clean.columns:
-        topic_info_clean = topic_info_clean.drop('Representative_Docs', axis=1)
+    # topic_info_clean = topic_info.copy()
+    # if 'Representative_Docs' in topic_info_clean.columns:
+    #     topic_info_clean = topic_info_clean.drop('Representative_Docs', axis=1)
     
-    print(topic_info_clean.to_string(index=False), file=fileObj)
+    print(topic_info.to_string(index=False), file=fileObj) # Temporarliy added representative docs back for more data
     
     # Log detailed words for ALL topics
     print("\n\nDETAILED TOPIC WORDS:", file=fileObj)
