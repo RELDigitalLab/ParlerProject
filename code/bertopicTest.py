@@ -4,12 +4,12 @@ import shutil
 import numpy as np
 from bertopic import BERTopic
 from sklearn.feature_extraction.text import CountVectorizer, ENGLISH_STOP_WORDS
-# from datasets import load_dataset
 import pandas as pd
 from sentence_transformers import SentenceTransformer
 import torch
 from tqdm import tqdm
 import time
+from collections import Counter
 
 start_time = time.time()
 
@@ -215,6 +215,40 @@ output_file = os.path.join(output_path, "topicModel.txt") # Text output file
 with open(output_file, 'w', encoding='utf-8') as fileObj:
     # Get complete topic information
     topic_info = topic_model.get_topic_info()
+
+    # ---- Topic Counts ----
+    num_topics = len(topic_info[topic_info.Topic != -1])
+
+    topic_counts = Counter(topics)
+    outlier_pct = (topic_counts.get(-1, 0) / len(topics)) * 100
+
+    largest_topic_pct = (
+        topic_info[topic_info.Topic != -1]['Count'].max() / len(topics)
+    ) * 100
+
+    median_topic_size = topic_info[topic_info.Topic != -1]['Count'].median()
+
+    # ---- Lexical Concentration Metrics ----
+    def top10_weight_concentration(topic_words):
+        return sum(score for _, score in topic_words[:10])
+
+    def top_ratio(topic_words):
+        return topic_words[0][1] / sum(score for _, score in topic_words[:10])
+
+    concentrations = []
+    ratios = []
+
+    for topic_id in topic_info.Topic:
+        if topic_id == -1:
+            continue
+        words = topic_model.get_topic(topic_id)
+        if words and len(words) >= 10:
+            concentrations.append(top10_weight_concentration(words))
+            ratios.append(top_ratio(words))
+
+    avg_top10_concentration = np.mean(concentrations)
+    avg_top_ratio = np.mean(ratios)
+
     
     # Log header information
     print("=" * 80, file=fileObj)
@@ -234,6 +268,16 @@ with open(output_file, 'w', encoding='utf-8') as fileObj:
     print(f"UMAP: {type(umap_model).__module__}.{type(umap_model).__name__}", file=fileObj)
     print(f"HDBSCAN: {type(hdbscan_model).__module__}.{type(hdbscan_model).__name__}", file=fileObj)
     print("=" * 80, file=fileObj)
+
+    print("\nMODEL QUALITY METRICS", file=fileObj)
+    print("-" * 50, file=fileObj)
+    print(f"Number of Topics (excl outliers): {num_topics}", file=fileObj)
+    print(f"Outlier Percentage: {outlier_pct:.2f}%", file=fileObj)
+    print(f"Largest Topic Percentage: {largest_topic_pct:.2f}%", file=fileObj)
+    print(f"Median Topic Size: {median_topic_size}", file=fileObj)
+    print(f"Avg Top-10 Weight Concentration: {avg_top10_concentration:.4f}", file=fileObj)
+    print(f"Avg Top1/Top10 Ratio: {avg_top_ratio:.4f}", file=fileObj)
+
     
     # Log COMPLETE topic info (not just top 10)
     print("\nCOMPLETE TOPIC INFORMATION:", file=fileObj)
