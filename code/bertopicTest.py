@@ -10,6 +10,7 @@ import torch
 from tqdm import tqdm
 import time
 from collections import Counter
+from bertopic.vectorizers import ClassTfidfTransformer
 
 start_time = time.time()
 
@@ -68,7 +69,7 @@ all_stop_words = list(ENGLISH_STOP_WORDS) + custom_stop_words
 vectorizer_model = CountVectorizer(
     stop_words=all_stop_words,  # Use combined stop words list
     ngram_range=(1, 2),         # Use both unigrams and bigrams
-    min_df=2,                   # Ignore terms that appear in less than 2 documents
+    min_df=10,                   # Ignore terms that appear in less than 10 documents
     max_features=5000           # Limit to top 5000 features
 )
 
@@ -107,8 +108,8 @@ try:
             low_memory=True
         )
         hdbscan_model = cumlHDBSCAN(
-            min_cluster_size=3000,
-            min_samples=10,
+            min_cluster_size=1000,
+            min_samples=5,
             metric='euclidean',
             prediction_data=False,
             verbose=True
@@ -149,6 +150,10 @@ if embedding_path is not None and os.path.exists(embedding_path):
     
     # Create BERTopic model with GPU-accelerated components
     print(f"\n🤖 Initializing BERTopic with GPU-accelerated components...")
+    # ctfidf_model = ClassTfidfTransformer(reduce_frequent_words=True) # Try uncommenting for better stop words
+    # topic_model = BERTopic(ctfidf_model=ctfidf_model )
+
+    # Add embedding_model=embedding_model if no embeddings
     topic_model = BERTopic(
         verbose=True,
         vectorizer_model=vectorizer_model,
@@ -160,30 +165,14 @@ if embedding_path is not None and os.path.exists(embedding_path):
     
     print(f"\n🔄 Running topic modeling on {len(docs)} documents...")
     print("Progress:")
-    topics, probs = topic_model.fit_transform(docs, embeddings)
+    orig_topics, probs = topic_model.fit_transform(docs, embeddings)
+    # Reduce outliers and update model
+    topics = topic_model.reduce_outliers(docs, orig_topics)
+    topic_model.update_topics(docs, topics=topics)
     print(f"✅ Using pre-loaded embeddings with shape: {embeddings.shape}")
     
 else:
-    print("\n💡 No pre-computed embeddings found. Computing embeddings with GPU/CPU...")
-    # Initialize SentenceTransformer with the detected device
-    print(f"Initializing embedding model on {device.upper()}...")
-    print(f"✅ Embedding model loaded on {device.upper()}")
-    
-    # Use embedding_model with BERTopic and GPU-accelerated components
-    print(f"\n🤖 Initializing BERTopic with GPU-accelerated components...")
-    topic_model = BERTopic(
-        verbose=True,
-        vectorizer_model=vectorizer_model,
-        embedding_model=embedding_model,
-        umap_model=umap_model,
-        hdbscan_model=hdbscan_model,
-        calculate_probabilities=False, # Set to True if possible, performance (memory) impact
-        low_memory=True # Might help speed up
-    )
-    
-    print(f"\n🔄 Running topic modeling on {len(docs)} documents...")
-    print("Progress: Computing embeddings and clustering...")
-    topics, probs = topic_model.fit_transform(docs)
+    print("\n💡 No pre-computed embeddings found.")
     
 
 
@@ -273,7 +262,7 @@ with open(output_file, 'w', encoding='utf-8') as fileObj:
 
     print("\nMODEL QUALITY METRICS", file=fileObj)
     print("-" * 50, file=fileObj)
-    print(f"Number of Topics (excl outliers): {num_topics}", file=fileObj)
+    print(f"Number of Topics (excluding outliers): {num_topics}", file=fileObj)
     print(f"Outlier Percentage: {outlier_pct:.2f}%", file=fileObj)
     print(f"Largest Topic Percentage: {largest_topic_pct:.2f}%", file=fileObj)
     print(f"Median Topic Size: {median_topic_size}", file=fileObj)
@@ -286,11 +275,11 @@ with open(output_file, 'w', encoding='utf-8') as fileObj:
     print("-" * 50, file=fileObj)
 
     # Drop the Representative_Docs column if it exists
-    # topic_info_clean = topic_info.copy()
-    # if 'Representative_Docs' in topic_info_clean.columns:
-    #     topic_info_clean = topic_info_clean.drop('Representative_Docs', axis=1)
+    topic_info_clean = topic_info.copy()
+    if 'Representative_Docs' in topic_info_clean.columns:
+        topic_info_clean = topic_info_clean.drop('Representative_Docs', axis=1)
     
-    print(topic_info.to_string(index=False), file=fileObj) # Temporarliy added representative docs back for more data
+    print(topic_info_clean.to_string(index=False), file=fileObj) 
     
     # Log detailed words for ALL topics
     print("\n\nDETAILED TOPIC WORDS:", file=fileObj)
