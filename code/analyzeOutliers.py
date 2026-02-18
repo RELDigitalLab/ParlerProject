@@ -279,13 +279,6 @@ try:
         topic_viz.write_html(topic_viz_path)
         print(f"✅ Saved: {topic_viz_path}")
         
-        # Barchart
-        print("Creating topic barchart...")
-        barchart_viz = outlier_topic_model.visualize_barchart(top_n_topics=min(10, unique_topics))
-        barchart_path = os.path.join(output_path, "outlier_barchart_visualization.html")
-        barchart_viz.write_html(barchart_path)
-        print(f"✅ Saved: {barchart_path}")
-        
         print(f"\n🎉 Visualizations saved to: {output_path}")
     else:
         print(f"⚠️  Insufficient topics for visualization (found {unique_topics}, need ≥2)")

@@ -109,7 +109,7 @@ try:
         )
         hdbscan_model = cumlHDBSCAN(
             min_cluster_size=1000,
-            min_samples=3,
+            min_samples=5,
             metric='euclidean',
             prediction_data=False,
             verbose=True
