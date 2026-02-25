@@ -12,6 +12,7 @@ dependencies:
   - cuml=24.02  # RAPIDS cuML for GPU-accelerated ML
   - cupy  # Required for cuML
   - beautifulsoup4
+  - openpyxl  # For Excel file creation and formatting
   - pip
   - numpy
   - pip:
