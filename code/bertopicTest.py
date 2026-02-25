@@ -32,7 +32,7 @@ except ImportError:
 
 # WSL-native paths for fast file access
 project_root = os.path.expanduser("~/Uncivil-Religion-2.0")
-data_dir = os.path.join(project_root, "parler_posts_txt")
+data_dir = os.path.join(project_root, "rescraped_posts_txt") # changed to rescraped ones
 output_path = os.path.join(project_root, "bertopicOutput")
 text_files = glob.glob(os.path.join(data_dir, "*.txt"))
 embedding_path = os.path.join(project_root, "embeddings.npy") # None
@@ -63,7 +63,7 @@ custom_stop_words = [
 ]
 
 # Get the built-in English stop words and combine with custom ones
-all_stop_words = list(ENGLISH_STOP_WORDS) + custom_stop_words
+all_stop_words = list(ENGLISH_STOP_WORDS) # + custom_stop_words
 
 # Create a CountVectorizer with combined stop words
 vectorizer_model = CountVectorizer(
@@ -167,8 +167,8 @@ if embedding_path is not None and os.path.exists(embedding_path):
     print("Progress:")
     topics, probs = topic_model.fit_transform(docs, embeddings)
     # Reduce outliers and update model
-    # topics = topic_model.reduce_outliers(docs, topics)
-    # topic_model.update_topics(docs, topics=topics)
+    topics = topic_model.reduce_outliers(docs, topics)
+    topic_model.update_topics(docs, topics=topics)
     print(f"✅ Using pre-loaded embeddings with shape: {embeddings.shape}")
     
 else:

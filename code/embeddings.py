@@ -10,7 +10,7 @@ start_time = time.time()
 
 # WSL-native paths for fast file access
 project_root = os.path.expanduser("~/Uncivil-Religion-2.0")
-data_dir = os.path.join(project_root, "parler_posts_txt")
+data_dir = os.path.join(project_root, "rescraped_posts_txt") # changed to rescraped ones
 output_path = os.path.join(project_root, "bertopicOutput")
 text_files = glob.glob(os.path.join(data_dir, "*.txt"))
 
