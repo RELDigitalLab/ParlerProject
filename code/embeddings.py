@@ -45,7 +45,7 @@ else:
 # COMPUTE EMBEDDINGS WITH PROGRESS TRACKING
 # ============================================================================
 # embedding_model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
-word_embedding_model = models.Transformer("vinai/bertweet-base")
+word_embedding_model = models.Transformer("vinai/bertweet-large") # slower/more memory intensive than base, should be better for longer posts and greater accuracy
 pooling_model = models.Pooling(
     word_embedding_model.get_word_embedding_dimension(),
     pooling_mode_mean_tokens=True
