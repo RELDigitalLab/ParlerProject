@@ -101,7 +101,7 @@ custom_stop_words = [
     "day", "hour", "minute", "week", "month", "year", "ago",
     "parler", "user", "profile", "share", "like", "follow", "video", "tag", "support", "browser", "hidden", "private"
 ]
-all_stop_words = list(ENGLISH_STOP_WORDS) + custom_stop_words
+all_stop_words = list(ENGLISH_STOP_WORDS) #+ custom_stop_words
 
 # Create vectorizer
 vectorizer_model = CountVectorizer(
@@ -127,7 +127,7 @@ try:
             low_memory=True
         )
         hdbscan_model = cumlHDBSCAN(
-            min_cluster_size=50,  # Smaller for outlier subset
+            min_cluster_size=10,  # Smaller for outlier subset
             min_samples=5,
             metric='euclidean',
             prediction_data=False,

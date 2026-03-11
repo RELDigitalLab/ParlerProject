@@ -7,13 +7,14 @@ import os
 import pandas as pd
 from bertopic import BERTopic
 from openpyxl import load_workbook
-from openpyxl.styles import Font, Alignment, PatternFill
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
 # Configuration
 project_root = os.path.expanduser("~/Uncivil-Religion-2.0")
-model_path = os.path.join(project_root, "bertopicOutput/Rescraped01/bertopic_model")
-output_excel = os.path.join(project_root, "bertopicOutput/Rescraped01/representative_docs.xlsx")
+folder_name = "Rescraped03" # could get from CLI input tbh
+model_path = os.path.join(project_root, f"bertopicOutput/{folder_name}/bertopic_model")
+output_excel = os.path.join(project_root, f"bertopicOutput/{folder_name}/representative_docs.xlsx")
 
 print("=" * 80)
 print("📊 EXTRACTING REPRESENTATIVE DOCUMENTS FROM BERTOPIC MODEL")
@@ -59,8 +60,6 @@ for topic_id in topic_info['Topic'].tolist():
                 'Document_Text': doc
             })
     
-    print(f"  Topic {topic_id}: {len(rep_docs)} representative docs")
-
 # Create DataFrame
 df = pd.DataFrame(all_data)
 
@@ -121,6 +120,90 @@ for sheet_name in wb.sheetnames:
         doc_col = get_column_letter(ws.max_column)
         for cell in ws[doc_col]:
             cell.alignment = Alignment(wrap_text=True, vertical='top')
+    
+    # Add borders around topic groups in All_Representative_Docs sheet
+    if sheet_name == 'All_Representative_Docs':
+        print("  Adding borders around topic groups...")
+        
+        # Group rows by Topic_ID
+        current_topic = None
+        topic_start_row = None
+        
+        for row_idx in range(2, ws.max_row + 1):  # Start from 2 (after header)
+            topic_id_cell = ws[f'A{row_idx}']
+            
+            if current_topic is None:
+                # First topic group
+                current_topic = topic_id_cell.value
+                topic_start_row = row_idx
+            elif topic_id_cell.value != current_topic:
+                # New topic started, apply border to previous group
+                for col_idx in range(1, ws.max_column + 1):
+                    col_letter = get_column_letter(col_idx)
+                    for r in range(topic_start_row, row_idx):
+                        cell = ws[f'{col_letter}{r}']
+                        
+                        # Apply thick border only on top and bottom rows, NO vertical borders
+                        if r == topic_start_row and r == row_idx - 1:
+                            # Single row group
+                            cell.border = Border(
+                                left=Side(style=None),
+                                right=Side(style=None),
+                                top=Side(style='medium', color='000000'),
+                                bottom=Side(style='medium', color='000000')
+                            )
+                        elif r == topic_start_row:
+                            # Top row of group - thick top border only
+                            cell.border = Border(
+                                left=Side(style=None),
+                                right=Side(style=None),
+                                top=Side(style='medium', color='000000'),
+                                bottom=Side(style=None)
+                            )
+                        elif r == row_idx - 1:
+                            # Bottom row of group - thick bottom border only
+                            cell.border = Border(
+                                left=Side(style=None),
+                                right=Side(style=None),
+                                top=Side(style=None),
+                                bottom=Side(style='medium', color='000000')
+                            )
+                
+                # Start new group
+                current_topic = topic_id_cell.value
+                topic_start_row = row_idx
+        
+        # Apply border to the last topic group
+        if topic_start_row is not None:
+            for col_idx in range(1, ws.max_column + 1):
+                col_letter = get_column_letter(col_idx)
+                for r in range(topic_start_row, ws.max_row + 1):
+                    cell = ws[f'{col_letter}{r}']
+                    
+                    if r == topic_start_row and r == ws.max_row:
+                        # Single row group
+                        cell.border = Border(
+                            left=Side(style=None),
+                            right=Side(style=None),
+                            top=Side(style='medium', color='000000'),
+                            bottom=Side(style='medium', color='000000')
+                        )
+                    elif r == topic_start_row:
+                        # Top row - thick top border only
+                        cell.border = Border(
+                            left=Side(style=None),
+                            right=Side(style=None),
+                            top=Side(style='medium', color='000000'),
+                            bottom=Side(style=None)
+                        )
+                    elif r == ws.max_row:
+                        # Bottom row - thick bottom border only
+                        cell.border = Border(
+                            left=Side(style=None),
+                            right=Side(style=None),
+                            top=Side(style=None),
+                            bottom=Side(style='medium', color='000000')
+                        )
     
     # Freeze header row
     ws.freeze_panes = 'A2'
