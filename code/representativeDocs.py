@@ -12,7 +12,7 @@ from openpyxl.utils import get_column_letter
 
 # Configuration
 project_root = os.path.expanduser("~/Uncivil-Religion-2.0")
-folder_name = "Rescraped03" # could get from CLI input tbh
+folder_name = "Rescraped03_topic5" # could get from CLI input tbh
 model_path = os.path.join(project_root, f"bertopicOutput/{folder_name}/bertopic_model")
 output_excel = os.path.join(project_root, f"bertopicOutput/{folder_name}/representative_docs.xlsx")
 
@@ -42,6 +42,11 @@ for topic_id in topic_info['Topic'].tolist():
     
     # Get representative documents for this topic
     rep_docs = topic_model.get_representative_docs(topic_id)
+    # rep_docs = topic_model._extract_representative_docs(
+    #     topic=topic_id,
+    #     documents=topic_model.documents_,
+    #     topics=topic_model.topics_,
+    #     nr_repr_docs=5) # Use to get 5 docs regardless of what model was trained with; will be slower
     
     if rep_docs:
         # Get top words for context

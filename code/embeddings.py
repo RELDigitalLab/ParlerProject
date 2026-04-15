@@ -11,13 +11,10 @@ start_time = time.time()
 # WSL-native paths for fast file access
 project_root = os.path.expanduser("~/Uncivil-Religion-2.0")
 data_dir = os.path.join(project_root, "rescraped_posts_txt") # changed to rescraped ones
-output_path = os.path.join(project_root, "bertopicOutput")
 text_files = glob.glob(os.path.join(data_dir, "*.txt"))
+output_path = os.path.join(project_root, "bertopicOutput")
+output_file = os.path.join(output_path, "bertweetEmbeddings.npy") # wrong name will need to fix
 
-# # Windows paths accessible from WSL
-# project_root = "/mnt/c/Parler"  # Absolute path to your Parler folder on Windows C: drive
-# data_dir = os.path.join(project_root, "data", "parler_posts_txt")  # /mnt/c/Parler/data/parler_posts_txt
-# output_path = os.path.join(project_root, "data", "bertopicOutput")  # /mnt/c/Parler/data/bertopicOutput
 docs = []
 
 # Load documents from local directory
@@ -44,13 +41,13 @@ else:
 # ============================================================================
 # COMPUTE EMBEDDINGS WITH PROGRESS TRACKING
 # ============================================================================
-# embedding_model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
-word_embedding_model = models.Transformer("vinai/bertweet-large") # slower/more memory intensive than base, should be better for longer posts and greater accuracy
-pooling_model = models.Pooling(
-    word_embedding_model.get_word_embedding_dimension(),
-    pooling_mode_mean_tokens=True
-)
-embedding_model = SentenceTransformer(modules=[word_embedding_model, pooling_model], device=device)
+embedding_model = SentenceTransformer('Qwen/Qwen3-Embedding-8B', device=device) # default: all-MiniLM-L6-v2
+# word_embedding_model = models.Transformer("vinai/bertweet-large") # slower/more memory intensive than base, should be better for longer posts and greater accuracy
+# pooling_model = models.Pooling(
+#     word_embedding_model.get_word_embedding_dimension(),
+#     pooling_mode_mean_tokens=True
+# )
+# embedding_model = SentenceTransformer(modules=[word_embedding_model, pooling_model], device=device)
 
 # Initialize SentenceTransformer with the detected device
 print(f"Initializing embedding model on {device.upper()}...")
@@ -62,12 +59,11 @@ embeddings = embedding_model.encode(
     show_progress_bar=True,
     convert_to_numpy=True,
     normalize_embeddings=True,
-    batch_size=32 if device == "cuda" else 16,
+    batch_size=512 if device == "cuda" else 16,
     device=device
 )
 
 # Save embeddings
-output_file = os.path.join(output_path, "embeddings.npy")
 print(f"\n💾 Saving embeddings to: {output_file}")
 np.save(output_file, embeddings)
 print("✅ Embeddings saved")
