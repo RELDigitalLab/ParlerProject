@@ -3,14 +3,14 @@ import glob
 import shutil
 import numpy as np
 from bertopic import BERTopic
-from sklearn.feature_extraction.text import CountVectorizer, ENGLISH_STOP_WORDS
+from sklearn.feature_extraction.text import CountVectorizer
 import pandas as pd
 from sentence_transformers import SentenceTransformer
 import torch
-from tqdm import tqdm
 import time
 from collections import Counter
-from bertopic.vectorizers import ClassTfidfTransformer
+from cuml.cluster import HDBSCAN as cumlHDBSCAN
+from cuml.manifold import UMAP as cumlUMAP
 
 start_time = time.time()
 
@@ -18,29 +18,53 @@ start_time = time.time()
 # 1. Run 'conda activate parlerEnv' to activate the environment with required packages
 # 2. Execute this script: 'python [path]/bertopicTest.py'
 
-# Attempt to use GPU-accelerated UMAP and HDBSCAN (cuML)
-try:
-    from cuml.cluster import HDBSCAN as cumlHDBSCAN
-    from cuml.manifold import UMAP as cumlUMAP
-    print("✅ Using cuML (GPU acceleration)")
-    use_gpu_clustering = True
-except ImportError:
-    from hdbscan import HDBSCAN
-    from umap import UMAP
-    print("ℹ️  Using CPU clustering (cuML not available on Windows)")
-    use_gpu_clustering = False
+# Check if GPU is available
+if torch.cuda.is_available():
+    device = "cuda"
+    print(f"✅ GPU detected: {torch.cuda.get_device_name(0)}")
+    print(f"   CUDA version: {torch.version.cuda}")
+    print(f"   Available GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
+else:
+    print("❌ No GPU detected. Exiting.")
+    exit(1)
 
-# WSL-native paths for fast file access
+# ============================================================================
+# ARGUMENTS: Major configuration options
+# ============================================================================
+# Set file paths for loading documents and embeddings (WSL-native paths)
 project_root = os.path.expanduser("~/Uncivil-Religion-2.0")
-data_dir = os.path.join(project_root, "rescraped_posts_txt") # changed to rescraped ones
-output_path = os.path.join(project_root, "bertopicOutput")
-text_files = glob.glob(os.path.join(data_dir, "*.txt"))
-embedding_path = os.path.join(project_root, "embeddings.npy") # None
+embedding_path = os.path.join(project_root, "embeddings.npy") # Location of embeddings; pre-computed embeddings are required
+data_dir = os.path.join(project_root, "rescraped_posts_txt") # Directory containing text files of documents to analyze
+output_path = os.path.join(project_root, "bertopicOutput") # Directory to save model and results
+output_file = os.path.join(output_path, "topicModel.txt") # Text output file
+saved_model_name = 'bertopic_model' # Filename for saving the BERTopic model
+
+
+# Set options for the topic modeling process
+outlier_reduction = True # Whether to perform outlier reduction after initial topic assignment
+embedding_model = SentenceTransformer('all-MiniLM-L6-v2', device=device) # Should be set to match the model used for pre-computed embeddings
+umap_model = cumlUMAP(
+    n_neighbors=100,
+    n_components=5,
+    min_dist=0.05,
+    metric='cosine',
+    verbose=True,
+    low_memory=True,
+    random_state=42 # A constant number means the same random initialization for reproducibility
+)
+hdbscan_model = cumlHDBSCAN(
+    min_cluster_size=400,
+    min_samples=None,  # default based on cluster size
+    metric='euclidean',
+    prediction_data=False,
+    verbose=True
+)
 
 
 docs = []
 
 # Load documents from local directory
+text_files = glob.glob(os.path.join(data_dir, "*.txt"))
 for file_path in text_files:
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -51,95 +75,18 @@ for file_path in text_files:
         print(f"Error reading {file_path}: {e}")    
         continue
 
-# Define custom stop words to filter out Parler-specific metadata
-custom_stop_words = [
-    # Parler metadata terms
-    "impressions", "post", "comments", "echoed", "upvotes", "echoes", "echo",
-    # Time-related individual words
-    "days", "hours", "minutes", "weeks", "months", "years", 
-    "day", "hour", "minute", "week", "month", "year", "ago",
-    # Other common metadata terms
-    "parler", "user", "profile", "share", "like", "follow", "video", "tag", "support", "browser", "hidden", "private"
-]
-
-# Get the built-in English stop words and combine with custom ones
-all_stop_words = list(ENGLISH_STOP_WORDS) # + custom_stop_words
-
-# Create a CountVectorizer with combined stop words
+# Create a CountVectorizer English stop words
 vectorizer_model = CountVectorizer(
-    stop_words=all_stop_words,  # Use combined stop words list
+    stop_words='english',       # Use built-in English stop words
     ngram_range=(1, 2),         # Use both unigrams and bigrams
-    min_df=10,                   # Ignore terms that appear in less than 10 documents
+    min_df=10,                  # Ignore terms that appear in less than 10 documents
     max_features=5000           # Limit to top 5000 features
 )
 
 # ============================================================================
-# EMBEDDING CONFIGURATION
+# RUN TOPIC MODELING
 # ============================================================================
-# Option 1: Load pre-computed embeddings from file
-# Set embedding_path to your .npy file path, or set to None to compute embeddings
-# Embeddings will be automatically saved to: [output_path]/embeddings.npy
 
-# Check if GPU is available
-if torch.cuda.is_available():
-    device = "cuda"
-    print(f"✅ GPU detected: {torch.cuda.get_device_name(0)}")
-    print(f"   CUDA version: {torch.version.cuda}")
-    print(f"   Available GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
-else:
-    device = "cpu"
-    print("⚠️  No GPU detected, using CPU")
-
-# ============================================================================
-# GPU-ACCELERATED DIMENSIONALITY REDUCTION AND CLUSTERING
-# ============================================================================
-print("\n📊 Configuring GPU-accelerated components...")
-
-# Try to use GPU-accelerated UMAP and HDBSCAN (cuML)
-try:
-    if device == "cuda":
-        print("Setting up GPU-accelerated UMAP and HDBSCAN (cuML)...")
-        umap_model = cumlUMAP(
-            n_neighbors=15,
-            n_components=5,
-            min_dist=0.0,
-            metric='cosine',
-            verbose=True,
-            low_memory=True
-        )
-        hdbscan_model = cumlHDBSCAN(
-            min_cluster_size=1000,
-            min_samples=5,
-            metric='euclidean',
-            prediction_data=False,
-            verbose=True
-        )
-        print("✅ GPU-accelerated UMAP and HDBSCAN configured")
-    else:
-        raise ImportError("CPU mode - using standard implementations")
-except (ImportError, Exception) as e:
-    print(f"⚠️  cuML not available ({e}), using CPU-based UMAP and HDBSCAN")
-    from umap import UMAP
-    from hdbscan import HDBSCAN
-    
-    umap_model = UMAP(
-        n_neighbors=15,
-        n_components=5,
-        min_dist=0.0,
-        metric='cosine',
-        verbose=True
-    )
-    hdbscan_model = HDBSCAN(
-        min_cluster_size=15,
-        min_samples=10,
-        metric='euclidean',
-        prediction_data=False
-    )
-
-# ============================================================================
-# LOAD OR COMPUTE EMBEDDINGS WITH PROGRESS TRACKING
-# ============================================================================
-embedding_model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
 if embedding_path is not None and os.path.exists(embedding_path):
     print(f"\n📂 Loading pre-computed embeddings from: {embedding_path}")
     embeddings = np.load(embedding_path, allow_pickle=True)
@@ -150,12 +97,10 @@ if embedding_path is not None and os.path.exists(embedding_path):
     
     # Create BERTopic model with GPU-accelerated components
     print(f"\n🤖 Initializing BERTopic with GPU-accelerated components...")
-    # ctfidf_model = ClassTfidfTransformer(reduce_frequent_words=True) # Try uncommenting for better stop words
-    # topic_model = BERTopic(ctfidf_model=ctfidf_model )
 
-    # Add embedding_model=embedding_model if no embeddings
     topic_model = BERTopic(
         verbose=True,
+        embedding_model=embedding_model, # Required for dimensionality reduction and clustering, even if embeddings are pre-computed
         vectorizer_model=vectorizer_model,
         umap_model=umap_model,
         hdbscan_model=hdbscan_model,
@@ -165,19 +110,21 @@ if embedding_path is not None and os.path.exists(embedding_path):
     
     print(f"\n🔄 Running topic modeling on {len(docs)} documents...")
     print("Progress:")
-    topics, probs = topic_model.fit_transform(docs, embeddings)
-    # Reduce outliers and update model
-    topics = topic_model.reduce_outliers(docs, topics)
-    topic_model.update_topics(docs, topics=topics)
-    print(f"✅ Using pre-loaded embeddings with shape: {embeddings.shape}")
-    
+    topics, probs = topic_model.fit_transform(docs, embeddings=embeddings)
+    # If enabled, reduce outliers and update model
+    if outlier_reduction:
+        print("\n🔄 Performing outlier reduction...")
+        topics = topic_model.reduce_outliers(docs, topics)
+        topic_model.update_topics(docs, topics=topics)
 else:
-    print("\n💡 No pre-computed embeddings found.")
+    print("\n💡 No pre-computed embeddings found. Exiting.")
+    exit(1)
     
 
 
 # Save model to file for later reuse
-model_path = os.path.join(output_path, "bertopic_model")
+os.makedirs(output_path, exist_ok=True) # create output directory if it doesn't exist
+model_path = os.path.join(output_path, saved_model_name)
 try: 
     topic_model.save(
         model_path,
@@ -190,18 +137,7 @@ except Exception as e:
     print(f"❌ Error saving model: {str(e)}")
 
 print(f"✅ Topic modeling complete!")
-
-print("\nTopic Information:")
-print(topic_model.get_topic_info())
-
-# words used to fit in Topic 0
-print("\nWords in Topic 0:")
-print(topic_model.get_topic(0))
-
-# Create output directory if it doesn't exist
-os.makedirs(output_path, exist_ok=True)
 print(f"Output directory: {output_path}")
-output_file = os.path.join(output_path, "topicModel.txt") # Text output file
 
 with open(output_file, 'w', encoding='utf-8') as fileObj:
     # Get complete topic information

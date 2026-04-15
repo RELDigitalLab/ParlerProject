@@ -1,3 +1,6 @@
+# To update, add dependencies to the list
+# Then run: conda env update -f environment.yml --prune
+
 name: parlerEnv
 channels:
   - rapidsai
